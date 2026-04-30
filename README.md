@@ -4,8 +4,7 @@ A real-time security camera system built on the ESP32-WROVER that detects motion
 
 The system uses frame-differencing as a cheap pre-filter to catch movement, then runs a quantized MobileNet model on-device to confirm whether the motion was caused by a person — cutting down on false positives from pets, shadows, and other noise. When a person is confirmed, the ESP32 triggers a hardware alert (LED + buzzer), captures a JPEG snapshot, and POSTs it to a Node.js dashboard that displays events in real time via WebSockets.
 
-<!-- Add a photo of your hardware setup here -->
-<!-- ![Hardware Setup](docs/hardware.jpg) -->
+[Hardware Setup](docs/hardware.jpg)
 
 ## Architecture
 
@@ -53,8 +52,7 @@ ESP32-WROVER (Camera + TFLite)
 | LED | Standard LED on GPIO 13 |
 | Buzzer | Active buzzer on GPIO 33 |
 
-<!-- Add a wiring photo here -->
-<!-- ![Wiring](docs/wiring.jpg) -->
+[Wiring](docs/wiring.jpg)
 
 ## How It Works
 
