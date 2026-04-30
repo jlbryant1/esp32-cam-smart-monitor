@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-CAM Smart Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-card: #111827;
+      --bg-card-hover: #1a2332;
+      --border: #1e2a3a;
+      --text-primary: #e2e8f0;
+      --text-secondary: #64748b;
+      --text-dim: #475569;
+      --accent-green: #10b981;
+      --accent-green-dim: rgba(16, 185, 129, 0.15);
+      --accent-red: #ef4444;
+      --accent-red-dim: rgba(239, 68, 68, 0.1);
+      --accent-amber: #f59e0b;
+      --accent-blue: #3b82f6;
+      --accent-blue-dim: rgba(59, 130, 246, 0.1);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Outfit', sans-serif;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app { position: relative; z-index: 1; }
+
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+      background: rgba(10, 14, 23, 0.85);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-green), #059669);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .logo span {
+      color: var(--accent-green);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-red);
+      transition: background 0.3s;
+    }
+
+    .status-dot.connected {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.5); }
+      50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.8); }
+    }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-green);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+
+    .stat-value.green { color: var(--accent-green); }
+    .stat-value.amber { color: var(--accent-amber); }
+    .stat-value.blue { color: var(--accent-blue); }
+
+    /* Main content */
+    .content {
+      padding: 0 2rem 2rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .live-badge {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      background: var(--accent-red);
+      color: white;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      animation: blink-badge 2s ease-in-out infinite;
+    }
+
+    @keyframes blink-badge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* Event cards */
+    .events-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+
+    .event-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.25s ease;
+      animation: card-in 0.4s ease-out;
+    }
+
+    .event-card:hover {
+      border-color: var(--accent-green);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(16px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .event-image {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      display: block;
+      background: #0d1117;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .event-info {
+      padding: 1rem 1.25rem;
+    }
+
+    .event-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .event-time {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .score-badge {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+    }
+
+    .score-high {
+      background: var(--accent-green-dim);
+      color: var(--accent-green);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .score-medium {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--accent-amber);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* Confidence bar */
+    .confidence-bar-container {
+      margin-top: 0.5rem;
+    }
+
+    .confidence-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .confidence-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .confidence-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .confidence-fill.high { background: linear-gradient(90deg, #059669, var(--accent-green)); }
+    .confidence-fill.medium { background: linear-gradient(90deg, #d97706, var(--accent-amber)); }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-dim);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.3;
+    }
+
+    .empty-state h3 {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+      font-size: 0.85rem;
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* Flash notification */
+    .flash {
+      position: fixed;
+      top: 80px;
+      right: 2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--accent-green);
+      border-radius: 10px;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(16, 185, 129, 0.15);
+      z-index: 200;
+      animation: flash-in 0.3s ease-out, flash-out 0.3s ease-in 2.7s forwards;
+    }
+
+    @keyframes flash-in {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes flash-out {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      header { padding: 1rem; }
+      .stats { padding: 1rem; }
+      .content { padding: 0 1rem 1rem; }
+      .events-grid { grid-template-columns: 1fr; }
+      .stat-value { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">📷</div>
+        <h1>ESP32-CAM <span>Smart Monitor</span></h1>
+      </div>
+      <div class="status-bar">
+        <div class="status-indicator">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Detections</div>
+        <div class="stat-value green" id="totalCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Confidence</div>
+        <div class="stat-value amber" id="avgScore">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Last Detection</div>
+        <div class="stat-value blue" id="lastTime">—</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="section-header">
+        <div class="section-title">
+          Detection Events
+          <span class="live-badge">LIVE</span>
+        </div>
+      </div>
+
+      <div class="events-grid" id="eventsGrid">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">🔍</div>
+          <h3>Waiting for detections</h3>
+          <p>Events will appear here in real-time when the ESP32-CAM detects a person.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    const eventsGrid = document.getElementById('eventsGrid');
+    const emptyState = document.getElementById('emptyState');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const totalCount = document.getElementById('totalCount');
+    const avgScore = document.getElementById('avgScore');
+    const lastTime = document.getElementById('lastTime');
+
+    let allEvents = [];
+
+    // Connection status
+    socket.on('connect', () => {
+      statusDot.classList.add('connected');
+      statusText.textContent = 'connected';
+    });
+
+    socket.on('disconnect', () => {
+      statusDot.classList.remove('connected');
+      statusText.textContent = 'disconnected';
+    });
+
+    // Load history on connect
+    socket.on('history', (events) => {
+      allEvents = events;
+      renderAllEvents();
+      updateStats();
+    });
+
+    // Real-time new detection
+    socket.on('detection', (event) => {
+      allEvents.unshift(event);
+      if (allEvents.length > 50) allEvents.pop();
+      prependEvent(event);
+      updateStats();
+      showFlash(event);
+    });
+
+    function getScoreClass(score) {
+      return score >= 200 ? 'high' : 'medium';
+    }
+
+    function formatTime(isoString) {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function formatDate(isoString) {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + formatTime(isoString);
+    }
+
+    function timeSince(isoString) {
+      const seconds = Math.floor((Date.now() - new Date(isoString)) / 1000);
+      if (seconds < 60) return seconds + 's ago';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+      return Math.floor(seconds / 86400) + 'd ago';
+    }
+
+    function createEventCard(event) {
+      const scoreClass = getScoreClass(event.score);
+      const confidence = Math.round((event.score / 255) * 100);
+
+      const card = document.createElement('div');
+      card.className = 'event-card';
+      card.innerHTML = `
+        <img class="event-image" src="/api/events/${event.id}/image" alt="Detection capture" loading="lazy">
+        <div class="event-info">
+          <div class="event-top">
+            <span class="event-time">${formatDate(event.timestamp)}</span>
+            <span class="score-badge score-${scoreClass}">${event.score}/255</span>
+          </div>
+          <div class="confidence-bar-container">
+            <div class="confidence-label">Confidence ${confidence}%</div>
+            <div class="confidence-bar">
+              <div class="confidence-fill ${scoreClass}" style="width: ${confidence}%"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      return card;
+    }
+
+    function renderAllEvents() {
+      if (allEvents.length === 0) return;
+      emptyState?.remove();
+      eventsGrid.innerHTML = '';
+      allEvents.forEach(event => {
+        eventsGrid.appendChild(createEventCard(event));
+      });
+    }
+
+    function prependEvent(event) {
+      emptyState?.remove();
+      const card = createEventCard(event);
+      eventsGrid.prepend(card);
+    }
+
+    function updateStats() {
+      totalCount.textContent = allEvents.length;
+
+      if (allEvents.length > 0) {
+        const avg = Math.round(allEvents.reduce((sum, e) => sum + e.score, 0) / allEvents.length);
+        avgScore.textContent = Math.round((avg / 255) * 100) + '%';
+        lastTime.textContent = timeSince(allEvents[0].timestamp);
+      }
+    }
+
+    function showFlash(event) {
+      const confidence = Math.round((event.score / 255) * 100);
+      const flash = document.createElement('div');
+      flash.className = 'flash';
+      flash.innerHTML = `🟢 Person detected — ${confidence}% confidence`;
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 3000);
+    }
+
+    // Update "time ago" every 30s
+    setInterval(() => {
+      if (allEvents.length > 0) {
+        lastTime.textContent = timeSince(allEvents[0].timestamp);
+      }
+    }, 30000);
+  </script>
+</body>
+</html>

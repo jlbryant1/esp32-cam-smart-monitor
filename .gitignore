@@ -1,0 +1,10 @@
+﻿# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+
+# Node
+dashboard/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
