@@ -2,7 +2,7 @@
 
 A real-time security camera system built on the ESP32-WROVER that detects motion, identifies people using TensorFlow Lite, and streams alerts to a live web dashboard.
 
-The system uses frame-differencing as a cheap pre-filter to catch movement, then runs a quantized MobileNet model on-device to confirm whether the motion was caused by a person — cutting down on false positives from pets, shadows, and other noise. When a person is confirmed, the ESP32 triggers a hardware alert (LED + buzzer), captures a JPEG snapshot, and POSTs it to a Node.js dashboard that displays events in real time via WebSockets.
+The system uses frame-differencing as a cheap pre-filter to catch movement, then runs a quantized MobileNet model on-device to confirm whether the motion was caused by a person cutting down on false positives from pets, shadows, and other noise. When a person is confirmed, the ESP32 triggers a hardware alert (LED + buzzer), captures a JPEG snapshot, and POSTs it to a Node.js dashboard that displays events in real time via WebSockets.
 
 [Hardware Setup](docs/hardware.jpg)
 
@@ -41,7 +41,7 @@ ESP32-WROVER (Camera + TFLite)
 **Dashboard (JavaScript)**
 - Node.js + Express backend
 - Socket.io for real-time WebSocket push
-- Vanilla JS frontend — no framework overhead
+- Vanilla JS frontend no framework overhead
 
 ## Hardware
 
@@ -58,7 +58,7 @@ ESP32-WROVER (Camera + TFLite)
 
 **Motion Detection** — Each frame is decoded from JPEG to RGB, and the green channel of every 4th pixel is compared against the previous frame. If more than 15% of sampled pixels changed by more than a threshold value across 3 consecutive frames, motion is flagged. This runs in ~1ms and filters out the vast majority of idle frames before TFLite ever needs to run.
 
-**Person Detection** — When motion is detected, the current frame is decoded, converted to grayscale, resized to 96x96 using nearest-neighbor interpolation, quantized to int8, and fed into a TFLite Micro interpreter running a pre-trained MobileNet. The model outputs a person confidence score from 0-255. Scores above 200 trigger an alert. Inference takes ~5 seconds on the ESP32's single core — acceptable for a security use case where the motion pre-filter keeps inference from running continuously.
+**Person Detection** — When motion is detected, the current frame is decoded, converted to grayscale, resized to 96x96 using nearest-neighbor interpolation, quantized to int8, and fed into a TFLite Micro interpreter running a pre-trained MobileNet. The model outputs a person confidence score from 0-255. Scores above 200 trigger an alert. Inference takes ~5 seconds on the ESP32's single core which is acceptable for a security use case where the motion pre-filter keeps inference from running continuously.
 
 **Non-blocking Alerts** — The LED and buzzer use a timer-based state machine instead of blocking `delay()` calls, so the camera stream stays smooth even while alerts are active.
 
