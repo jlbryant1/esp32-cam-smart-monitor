@@ -8,12 +8,12 @@
 #define CAMERA_MODEL_WROVER_KIT
 #include "camera_pins.h"
 
-const char *ssid = "YOUR_WIFI_SSID";
-const char *password = "YOUR_WIFI_PASSWORD";
+const char *ssid = "GetYourOwnWifiLOL";
+const char *password = "sachi001";
 
 // Dashboard server URL — update with your PC's IP
 // Find it by running "ipconfig" in PowerShell, look for IPv4 Address
-#define DASHBOARD_URL "http://YOUR_SERVER_IP:3000"
+#define DASHBOARD_URL "https://esp32-cam-dashboard.onrender.com"
 
 bool streamActive = false;
 bool tfliteReady = false;
@@ -278,8 +278,8 @@ void loop()
       if (personScore >= PERSON_THRESHOLD)
       {
         lastAlertTime = now;
-        triggerAlert();
         postDetectionEvent(fb, personScore);
+        triggerAlert();
       }
       else
       {
